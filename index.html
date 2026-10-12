@@ -3,8 +3,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flappy Bird - Medium Speed</title>
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0,
+          maximum-scale=1.0, user-scalable=no">
+
+    <title>Flappy Bird</title>
 
     <style>
         * {
@@ -13,37 +16,99 @@
             box-sizing: border-box;
         }
 
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
         body {
             font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #172554, #263238, #0f766e);
+            background: linear-gradient(
+                135deg, #172554, #263238, #0f766e
+            );
+
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            padding: 10px;
         }
 
         .game-container {
-            width: 1000px;
-            max-width: 100%;
+            position: relative;
+            width: min(100vw, 1000px);
+            aspect-ratio: 5 / 4;
             overflow: hidden;
-            border: 4px solid white;
-            border-radius: 14px;
-            box-shadow: 0 0 35px rgba(0, 255, 200, 0.25);
+
+            border: 3px solid white;
+            border-radius: 12px;
+
+            box-shadow: 0 0 35px
+                rgba(0, 255, 200, 0.25);
         }
 
         canvas {
             display: block;
             width: 100%;
-            height: auto;
-            background: #70C5CE;
+            height: 100%;
             cursor: pointer;
-            touch-action: manipulation;
+            touch-action: none;
+        }
+
+        .fullscreen-btn,
+        .music-btn {
+            position: absolute;
+            top: 12px;
+            z-index: 5;
+
+            color: white;
+            background: rgba(20, 35, 45, 0.75);
+            border: 1px solid rgba(255,255,255,0.65);
+            border-radius: 10px;
+
+            padding: 10px 13px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .fullscreen-btn {
+            right: 12px;
+        }
+
+        .music-btn {
+            left: 12px;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .game-container:fullscreen {
+            width: 100vw;
+            height: 100vh;
+            max-width: none;
+            aspect-ratio: auto;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            background: #70C5CE;
+        }
+
+        .game-container:fullscreen canvas {
+            width: 100%;
+            height: 100%;
         }
 
         @media (max-width: 600px) {
             .game-container {
-                border-width: 2px;
+                border-width: 1px;
+                border-radius: 5px;
+            }
+
+            .fullscreen-btn,
+            .music-btn {
+                top: 8px;
+                padding: 8px 10px;
+                font-size: 16px;
             }
         }
     </style>
@@ -51,22 +116,39 @@
 
 <body>
 
-<div class="game-container">
+<div class="game-container" id="gameContainer">
+
     <canvas id="game" width="1000" height="800"></canvas>
+
+    <button class="music-btn" id="musicButton"
+            aria-label="Toggle music">♫</button>
+
+    <button class="fullscreen-btn" id="fullscreenButton"
+            aria-label="Toggle fullscreen">⛶</button>
+
 </div>
 
 <script>
     // =========================
-    // GAME SETTINGS
+    // CANVAS
     // =========================
 
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
 
+    const container = document.getElementById("gameContainer");
+    const fullscreenButton =
+        document.getElementById("fullscreenButton");
+    const musicButton =
+        document.getElementById("musicButton");
+
     const WIDTH = 1000;
     const HEIGHT = 800;
 
-    // Medium-speed settings
+    // =========================
+    // GAME SETTINGS
+    // =========================
+
     const GRAVITY = 0.5;
     const JUMP_STRENGTH = -9;
     const PIPE_SPEED = 3;
@@ -82,15 +164,13 @@
     // COLORS
     // =========================
 
-    const SKY = "#70C5CE";
-    const GROUND = "#DED895";
-    const GRASS = "#5DBB63";
-    const PIPE_GREEN = "#4CAF50";
-    const PIPE_DARK = "#277A35";
-    const YELLOW = "#FFD93D";
-    const ORANGE = "#F4A261";
     const WHITE = "#FFFFFF";
     const DARK = "#263238";
+    const YELLOW = "#FFD93D";
+    const ORANGE = "#F4A261";
+    const GRASS = "#5DBB63";
+    const GROUND = "#DED895";
+    const PIPE_DARK = "#277A35";
 
     // =========================
     // GAME VARIABLES
@@ -105,24 +185,89 @@
 
     let running = false;
     let gameOver = false;
-    let started = false;
 
     let animationId = null;
     let lastTime = 0;
 
     // =========================
+    // RESPONSIVE DISPLAY
+    // =========================
+
+    // Canvas drawing uses 1000 x 800 logical coordinates.
+    // CSS automatically scales it to the screen.
+
+    function resizeGame() {
+        // Keep the drawing resolution unchanged.
+        // CSS resizes the frame for each device.
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+    }
+
+    window.addEventListener("resize", resizeGame);
+
+    window.addEventListener("orientationchange", () => {
+        setTimeout(resizeGame, 100);
+    });
+
+    resizeGame();
+
+    // =========================
+    // FULLSCREEN
+    // =========================
+
+    async function toggleFullscreen() {
+        try {
+            if (!document.fullscreenElement) {
+                await container.requestFullscreen();
+            } else {
+                await document.exitFullscreen();
+            }
+        } catch (error) {
+            console.log("Fullscreen is unavailable:", error);
+        }
+    }
+
+    fullscreenButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleFullscreen();
+    });
+
+    document.addEventListener("fullscreenchange", () => {
+        fullscreenButton.textContent =
+            document.fullscreenElement ? "✕" : "⛶";
+
+        resizeGame();
+    });
+
+    // =========================
     // BACKGROUND
     // =========================
 
+    function drawCloud(x, y, scale = 1) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 30, 0, Math.PI * 2);
+        ctx.arc(35, -20, 38, 0, Math.PI * 2);
+        ctx.arc(70, 0, 30, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
     function drawBackground() {
-        const skyGradient = ctx.createLinearGradient(
+        const sky = ctx.createLinearGradient(
             0, 0, 0, HEIGHT
         );
 
-        skyGradient.addColorStop(0, "#55CBE5");
-        skyGradient.addColorStop(1, "#B5F3F5");
+        sky.addColorStop(0, "#55CBE5");
+        sky.addColorStop(1, "#B5F3F5");
 
-        ctx.fillStyle = skyGradient;
+        ctx.fillStyle = sky;
         ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
         // Sun
@@ -132,14 +277,14 @@
         ctx.fill();
 
         // Clouds
-        drawCloud(150, 110);
-        drawCloud(670, 180);
-        drawCloud(430, 270);
+        drawCloud(100, 120, 1);
+        drawCloud(620, 180, 0.9);
+        drawCloud(380, 270, 0.7);
 
         // Distant hills
         ctx.fillStyle = "#86D6A0";
         ctx.beginPath();
-        ctx.moveTo(0, HEIGHT - GROUND_HEIGHT);
+        ctx.moveTo(0, 680);
         ctx.quadraticCurveTo(200, 570, 400, 730);
         ctx.quadraticCurveTo(650, 560, 850, 730);
         ctx.lineTo(WIDTH, 730);
@@ -150,22 +295,18 @@
         // Ground
         ctx.fillStyle = GROUND;
         ctx.fillRect(
-            0,
-            HEIGHT - GROUND_HEIGHT,
-            WIDTH,
-            GROUND_HEIGHT
+            0, HEIGHT - GROUND_HEIGHT,
+            WIDTH, GROUND_HEIGHT
         );
 
         // Grass
         ctx.fillStyle = GRASS;
         ctx.fillRect(
-            0,
-            HEIGHT - GROUND_HEIGHT,
-            WIDTH,
-            15
+            0, HEIGHT - GROUND_HEIGHT,
+            WIDTH, 15
         );
 
-        // Ground details
+        // Ground decoration
         ctx.fillStyle = "#C7BD77";
 
         for (let x = 0; x < WIDTH; x += 45) {
@@ -173,24 +314,13 @@
         }
     }
 
-    function drawCloud(x, y) {
-        ctx.fillStyle = "rgba(255,255,255,0.85)";
-
-        ctx.beginPath();
-        ctx.arc(x, y, 30, 0, Math.PI * 2);
-        ctx.arc(x + 35, y - 20, 38, 0, Math.PI * 2);
-        ctx.arc(x + 70, y, 30, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
     // =========================
-    // DRAW BIRD
+    // BIRD
     // =========================
 
     function drawBird(x, y) {
         ctx.save();
 
-        // Rotate bird according to movement
         const angle = Math.max(
             -0.35,
             Math.min(0.7, birdVelocity * 0.045)
@@ -206,10 +336,8 @@
 
         ctx.beginPath();
         ctx.ellipse(
-            0, 0,
-            BIRD_SIZE / 2,
-            BIRD_SIZE / 2,
-            0, 0, Math.PI * 2
+            0, 0, BIRD_SIZE / 2,
+            BIRD_SIZE / 2, 0, 0, Math.PI * 2
         );
         ctx.fill();
         ctx.stroke();
@@ -218,11 +346,8 @@
         ctx.fillStyle = ORANGE;
 
         ctx.beginPath();
-        ctx.ellipse(
-            -6, 7,
-            9, 5.5,
-            0, 0, Math.PI * 2
-        );
+        ctx.ellipse(-6, 7, 9, 5.5, 0,
+                    0, Math.PI * 2);
         ctx.fill();
 
         // Eye
@@ -252,7 +377,7 @@
     }
 
     // =========================
-    // CREATE PIPES
+    // PIPES
     // =========================
 
     function createPipe(x) {
@@ -260,7 +385,8 @@
         const maxCenter = HEIGHT - GROUND_HEIGHT - 190;
 
         const gapCenter = Math.floor(
-            Math.random() * (maxCenter - minCenter) + minCenter
+            Math.random() * (maxCenter - minCenter)
+            + minCenter
         );
 
         pipes.push({
@@ -269,10 +395,6 @@
             passed: false
         });
     }
-
-    // =========================
-    // DRAW PIPES
-    // =========================
 
     function drawPipe(pipe) {
         const x = pipe.x;
@@ -286,16 +408,15 @@
         const bottomHeight =
             HEIGHT - GROUND_HEIGHT - bottomY;
 
-        // Pipe gradient
-        const pipeGradient = ctx.createLinearGradient(
+        const gradient = ctx.createLinearGradient(
             x, 0, x + PIPE_WIDTH, 0
         );
 
-        pipeGradient.addColorStop(0, "#2E8B3C");
-        pipeGradient.addColorStop(0.5, "#72D572");
-        pipeGradient.addColorStop(1, "#258038");
+        gradient.addColorStop(0, "#2E8B3C");
+        gradient.addColorStop(0.5, "#72D572");
+        gradient.addColorStop(1, "#258038");
 
-        ctx.fillStyle = pipeGradient;
+        ctx.fillStyle = gradient;
         ctx.strokeStyle = PIPE_DARK;
         ctx.lineWidth = 3;
 
@@ -305,47 +426,33 @@
 
         // Top lip
         ctx.fillRect(
-            x - 5,
-            topHeight - 20,
-            PIPE_WIDTH + 10,
-            20
+            x - 5, topHeight - 20,
+            PIPE_WIDTH + 10, 20
         );
 
         ctx.strokeRect(
-            x - 5,
-            topHeight - 20,
-            PIPE_WIDTH + 10,
-            20
+            x - 5, topHeight - 20,
+            PIPE_WIDTH + 10, 20
         );
 
         // Bottom pipe
         ctx.fillRect(
-            x,
-            bottomY,
-            PIPE_WIDTH,
-            bottomHeight
+            x, bottomY, PIPE_WIDTH, bottomHeight
         );
 
         ctx.strokeRect(
-            x,
-            bottomY,
-            PIPE_WIDTH,
-            bottomHeight
+            x, bottomY, PIPE_WIDTH, bottomHeight
         );
 
         // Bottom lip
         ctx.fillRect(
-            x - 5,
-            bottomY,
-            PIPE_WIDTH + 10,
-            20
+            x - 5, bottomY,
+            PIPE_WIDTH + 10, 20
         );
 
         ctx.strokeRect(
-            x - 5,
-            bottomY,
-            PIPE_WIDTH + 10,
-            20
+            x - 5, bottomY,
+            PIPE_WIDTH + 10, 20
         );
     }
 
@@ -356,9 +463,9 @@
     function drawScore() {
         ctx.textAlign = "center";
         ctx.font = "bold 46px Arial";
-
         ctx.lineWidth = 5;
         ctx.strokeStyle = "rgba(0,0,0,0.3)";
+
         ctx.strokeText(score, WIDTH / 2, 75);
 
         ctx.fillStyle = WHITE;
@@ -367,45 +474,171 @@
 
     // =========================
     // START SCREEN
+    // Only the game title is shown.
     // =========================
 
     function showStartScreen() {
         drawBackground();
         drawBird(BIRD_X, birdY);
-        drawScore();
 
+        ctx.save();
         ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
 
-        ctx.fillStyle = "rgba(38,50,56,0.85)";
-        ctx.fillRect(180, 245, 640, 200);
+        // Soft title shadow
+        ctx.shadowColor = "rgba(0,0,0,0.35)";
+        ctx.shadowBlur = 18;
+        ctx.shadowOffsetY = 5;
 
-        ctx.strokeStyle = WHITE;
+        ctx.font = "bold 70px Arial";
         ctx.lineWidth = 3;
-        ctx.strokeRect(180, 245, 640, 200);
-
-        ctx.fillStyle = "#FFD93D";
-        ctx.font = "bold 52px Arial";
-        ctx.fillText("FLAPPY BIRD", WIDTH / 2, 310);
-
-        ctx.fillStyle = WHITE;
-        ctx.font = "bold 22px Arial";
-        ctx.fillText(
-            "MEDIUM SPEED MODE",
-            WIDTH / 2, 355
+        ctx.strokeStyle = "#D98C00";
+        ctx.strokeText(
+            "FLAPPY BIRD", WIDTH / 2, HEIGHT / 2
         );
 
-        ctx.font = "20px Arial";
+        ctx.fillStyle = YELLOW;
         ctx.fillText(
-            "PRESS SPACE OR CLICK TO START",
-            WIDTH / 2, 405
+            "FLAPPY BIRD", WIDTH / 2, HEIGHT / 2
         );
+
+        ctx.restore();
     }
+
+    // =========================
+    // BACKGROUND MUSIC
+    // Generated with Web Audio API.
+    // No external audio file required.
+    // =========================
+
+    let audioContext = null;
+    let musicTimer = null;
+    let musicEnabled = true;
+    let musicStep = 0;
+
+    const melody = [
+        523.25, 659.25, 783.99, 659.25,
+        587.33, 698.46, 880.00, 698.46,
+        523.25, 659.25, 783.99, 1046.50,
+        880.00, 783.99, 659.25, 587.33
+    ];
+
+    const bassNotes = [
+        130.81, 130.81, 164.81, 164.81,
+        146.83, 146.83, 174.61, 174.61
+    ];
+
+    function playTone(
+        frequency, duration, volume, waveform = "sine"
+    ) {
+        if (!audioContext || !musicEnabled) return;
+
+        const now = audioContext.currentTime;
+
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        oscillator.type = waveform;
+        oscillator.frequency.setValueAtTime(
+            frequency, now
+        );
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(
+            volume, now + 0.025
+        );
+
+        gain.gain.exponentialRampToValueAtTime(
+            0.001, now + duration
+        );
+
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+
+        oscillator.start(now);
+        oscillator.stop(now + duration + 0.03);
+    }
+
+    function playMusicBeat() {
+        if (!audioContext || !musicEnabled) return;
+
+        const note = melody[musicStep % melody.length];
+
+        // Bright, cheerful melody
+        playTone(note, 0.23, 0.045, "sine");
+
+        // Gentle bass accompaniment
+        if (musicStep % 2 === 0) {
+            const bass =
+                bassNotes[musicStep % bassNotes.length];
+
+            playTone(bass, 0.42, 0.035, "triangle");
+        }
+
+        // Soft high note for a magical feel
+        if (musicStep % 4 === 2) {
+            playTone(note * 2, 0.16, 0.012, "sine");
+        }
+
+        musicStep++;
+    }
+
+    async function startMusic() {
+        if (!musicEnabled) return;
+
+        try {
+            if (!audioContext) {
+                const AudioContextClass =
+                    window.AudioContext ||
+                    window.webkitAudioContext;
+
+                if (!AudioContextClass) return;
+
+                audioContext = new AudioContextClass();
+            }
+
+            if (audioContext.state === "suspended") {
+                await audioContext.resume();
+            }
+
+            if (musicTimer === null) {
+                playMusicBeat();
+
+                musicTimer = setInterval(
+                    playMusicBeat, 260
+                );
+            }
+        } catch (error) {
+            console.log("Audio unavailable:", error);
+        }
+    }
+
+    function stopMusic() {
+        if (musicTimer !== null) {
+            clearInterval(musicTimer);
+            musicTimer = null;
+        }
+    }
+
+    musicButton.addEventListener("click", async (event) => {
+        event.stopPropagation();
+
+        musicEnabled = !musicEnabled;
+
+        if (musicEnabled) {
+            musicButton.textContent = "♫";
+            await startMusic();
+        } else {
+            musicButton.textContent = "♪̸";
+            stopMusic();
+        }
+    });
 
     // =========================
     // START / RESTART GAME
     // =========================
 
-    function startGame() {
+    async function startGame() {
         if (animationId !== null) {
             cancelAnimationFrame(animationId);
             animationId = null;
@@ -421,15 +654,15 @@
 
         running = true;
         gameOver = false;
-        started = true;
-
         lastTime = 0;
+
+        await startMusic();
 
         animationId = requestAnimationFrame(gameLoop);
     }
 
     // =========================
-    // BIRD FLAP
+    // FLAP
     // =========================
 
     function flap(event) {
@@ -439,6 +672,8 @@
 
         if (!running) {
             startGame();
+            birdVelocity = JUMP_STRENGTH;
+            return;
         }
 
         birdVelocity = JUMP_STRENGTH;
@@ -451,16 +686,12 @@
     function checkCollision() {
         const birdLeft = BIRD_X - BIRD_SIZE / 2;
         const birdRight = BIRD_X + BIRD_SIZE / 2;
-
         const birdTop = birdY - BIRD_SIZE / 2;
         const birdBottom = birdY + BIRD_SIZE / 2;
 
-        // Ceiling
-        if (birdTop <= 0) {
-            return true;
-        }
+        // Ceiling and ground
+        if (birdTop <= 0) return true;
 
-        // Ground
         if (birdBottom >= HEIGHT - GROUND_HEIGHT) {
             return true;
         }
@@ -493,7 +724,7 @@
     }
 
     // =========================
-    // GAME OVER SCREEN
+    // GAME OVER
     // =========================
 
     function endGame() {
@@ -513,7 +744,6 @@
         drawBird(BIRD_X, birdY);
         drawScore();
 
-        // Game-over panel
         const boxWidth = 500;
         const boxHeight = 300;
 
@@ -525,13 +755,11 @@
         ctx.lineWidth = 3;
 
         ctx.fillRect(
-            boxLeft, boxTop,
-            boxWidth, boxHeight
+            boxLeft, boxTop, boxWidth, boxHeight
         );
 
         ctx.strokeRect(
-            boxLeft, boxTop,
-            boxWidth, boxHeight
+            boxLeft, boxTop, boxWidth, boxHeight
         );
 
         ctx.textAlign = "center";
@@ -539,8 +767,7 @@
         ctx.fillStyle = "#FF5252";
         ctx.font = "bold 42px Arial";
         ctx.fillText(
-            "GAME OVER",
-            WIDTH / 2, boxTop + 60
+            "GAME OVER", WIDTH / 2, boxTop + 60
         );
 
         ctx.fillStyle = WHITE;
@@ -550,7 +777,7 @@
             WIDTH / 2, boxTop + 125
         );
 
-        ctx.fillStyle = "#FFD54F";
+        ctx.fillStyle = YELLOW;
         ctx.font = "bold 23px Arial";
         ctx.fillText(
             "Best: " + bestScore,
@@ -572,15 +799,13 @@
     // =========================
 
     function gameLoop(timestamp) {
-        if (!running) {
-            return;
-        }
+        if (!running) return;
 
-        // Keep game speed consistent across screen refresh rates.
         if (lastTime === 0) {
             lastTime = timestamp;
         }
 
+        // Normalize movement for different refresh rates
         const deltaTime = Math.min(
             (timestamp - lastTime) / 16.667,
             2
@@ -588,11 +813,11 @@
 
         lastTime = timestamp;
 
-        // Bird physics
+        // Bird movement
         birdVelocity += GRAVITY * deltaTime;
         birdY += birdVelocity * deltaTime;
 
-        // Move pipes at medium speed
+        // Pipe movement
         for (const pipe of pipes) {
             pipe.x -= PIPE_SPEED * deltaTime;
         }
@@ -605,12 +830,12 @@
             createPipe(WIDTH);
         }
 
-        // Remove old pipes
+        // Remove pipes outside screen
         pipes = pipes.filter(
             pipe => pipe.x > -PIPE_WIDTH - 20
         );
 
-        // Update score
+        // Score
         for (const pipe of pipes) {
             if (
                 !pipe.passed &&
@@ -621,7 +846,6 @@
             }
         }
 
-        // Draw everything
         drawBackground();
 
         for (const pipe of pipes) {
@@ -631,7 +855,6 @@
         drawBird(BIRD_X, birdY);
         drawScore();
 
-        // Collision detection
         if (checkCollision()) {
             endGame();
             return;
@@ -644,14 +867,13 @@
     // KEYBOARD CONTROLS
     // =========================
 
-    document.addEventListener("keydown", function(event) {
+    document.addEventListener("keydown", event => {
         if (
             event.code === "Space" ||
             event.code === "ArrowUp"
         ) {
             event.preventDefault();
 
-            // Prevent holding the key from auto-flapping
             if (!event.repeat) {
                 flap();
             }
@@ -660,16 +882,21 @@
         if (event.code === "Enter" && !running) {
             startGame();
         }
+
+        // F key toggles fullscreen
+        if (event.code === "KeyF") {
+            toggleFullscreen();
+        }
     });
 
     // =========================
-    // MOUSE / TOUCH CONTROLS
+    // MOUSE AND TOUCH
     // =========================
 
     canvas.addEventListener("pointerdown", flap);
 
     // =========================
-    // INITIALIZE GAME
+    // INITIALIZE
     // =========================
 
     showStartScreen();
@@ -678,3 +905,4 @@
 
 </body>
 </html>
+```
